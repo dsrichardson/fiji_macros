@@ -1,0 +1,398 @@
+// Created by J Farrell & D Richardson 2014/04/08
+// Modified 2014/11/07, 2015/01/26, 2015/05/11, 2015/08/14
+
+
+
+// Make a dialog to find out how many channels, timepoints, and angles to anticipate.
+macro "Z1 CZI to TIF for Timelapse and Multiview data" {
+	Dialog.create("Parameters of your acquisiton");
+	Dialog.addMessage("First, define here the parameters of your acquisition.");
+	Dialog.addNumber("Number of channels?",1);
+	Dialog.addMessage("How many angles/views are there?");
+	Dialog.addNumber("Angles/views?",3);
+	Dialog.addMessage("How many timepoints are there?");
+	Dialog.addNumber("Timepoints",1);
+	Dialog.addMessage("Do you want to bin (downsample)?");
+	Dialog.addNumber("Bin in X",1);
+	Dialog.addNumber("Bin in Y",1);
+	Dialog.addNumber("Bin in Z",1);
+	Dialog.show();
+	numChan = Dialog.getNumber();
+	numAngle = Dialog.getNumber();
+	numTime = Dialog.getNumber();
+	binX = Dialog.getNumber();
+	binY = Dialog.getNumber();
+	binZ = Dialog.getNumber();
+	chanDefaults = newArray("","green","red","","");
+
+// Make a dialog to find out the parameters of the channels
+	Dialog.create("Parameters of your acquisition");
+	Dialog.addMessage("What are the names of your channels?");
+	for (currChan=1; currChan <= numChan; currChan++) {
+		if (currChan > 4) {
+			chanDefaults[currChan]="";
+		}
+		Dialog.addString("Channel "+currChan+":", chanDefaults[currChan]);
+	}
+	Dialog.addMessage(" ");
+	Dialog.addMessage("After clicking OK, you will be prompted to select\n" +
+	"the original .CZI file and an output location for \n" +
+	"the files corresponding to each channel.");
+	Dialog.show()
+	chanName=newArray(numChan+1);
+	for (currChan=1; currChan <= numChan; currChan++) {
+		chanName[currChan]=Dialog.getString();
+		chanName[currChan]=replace(chanName[currChan], " ", "_");
+	}
+
+// Get the path to each file and the output directory.
+	filePath=File.openDialog("Original .CZI file");
+	fileName=File.getName(filePath);
+	outputDir=getDirectory("Choose an output location");
+
+// Inside of the output directory, make a directory for each channel.
+	for (currChan=1; currChan <= numChan; currChan++) {
+		chanDir=outputDir+File.separator+chanName[currChan];
+		blah=File.makeDirectory(chanDir);
+	}
+
+// Create markers for elapsed time.
+    openElapsed=0;
+    processElapsed=0;
+    timesDone=0;
+    timesRemain=0;
+    filesRemain=numAngle*numTime;
+    filesDone=0;
+    absoluteStart=getTime();
+
+// Determine file structure
+    if (numTime == 1 && numChan == 1 && numAngle == 1) {
+    	setBatchMode (true);
+    	print ("Number of Timepoints = " + numTime + ".  Number of Channels = " + numChan + ".  Number of Angles = " + numAngle + ".");
+    	//Open file
+    	run("Bio-Formats Importer", "open=" + filePath + " color_mode=Grayscale specify_range view=Hyperstack stack_order=XYCZT");
+	    print ("Opened File");
+		// Downsample and save
+		if (binX + binY + binZ > 3) {
+            print ("Downsampling");
+            run("Bin...", "x=" + binX + " y=" + binY + " z=" + binZ + " bin=Average");
+            print ("Binned: " + binX + " x " + binY + " x " + binZ + " times");
+            }
+        filename=outputDir + File.separator + chanName[1]+ File.separator + "spim_TL001_Angle1.tif";
+		saveAs("Tiff", filename);	
+		close();
+		print ("Done!");
+		setBatchMode (false);
+    }
+    else if (numTime > 1 && numChan == 1 && numAngle == 1) {
+    	print ("Number of Timepoints = " + numTime + ".  Number of Channels = " + numChan + ".  Number of Angles = " + numAngle + ".");
+    	setBatchMode(true);
+    	for (Time=1; Time <= numTime; Time++) {
+    		startedAt = getTime();
+		    // Open file
+			run("Bio-Formats Importer", "open=" + filePath + " color_mode=Grayscale specify_range view=Hyperstack stack_order=XYCZT t_begin=" + Time + " t_end=" + Time + " t_step=1");
+			print ("Opened Timepoint " + Time);
+			// Downsample and save
+		    if (binX + binY + binZ > 3) {
+                print ("Downsampling");
+                run("Bin...", "x=" + binX + " y=" + binY + " z=" + binZ + " bin=Average");
+                print ("Binned Timepoint " + Time +":" + binX + " x " + binY + " x " + binZ + " times");
+            }
+            filename = outputDir + File.separator + chanName[1]+ File.separator + "spim_TL"+IJ.pad(Time,3)+"_Angle1.tif";
+		    saveAs("Tiff", filename);	
+		    close();
+		    // clear memory
+            call("java.lang.System.gc");
+            // Update counters
+		    openElapsed += getTime() - startedAt;
+		    filesDone += 1;
+		    filesRemain -= 1;
+		    print ("Files completed = " + filesDone + " Files remaining = " + filesRemain); 
+    	}
+        setBatchMode(false);
+        totalTime=(getTime()-absoluteStart)/(1000*60);
+        print ("ALL DONE! It took "+d2s(totalTime,0)+" minutes.");
+        // Save the log file.
+        selectWindow("Log");
+        thisFile=outputDir+"CZI_to_TIF.log";
+        saveAs("text",thisFile);	
+    }
+    else if (numTime == 1 && numChan > 1 && numAngle == 1) {
+    	print ("Number of Timepoints = " + numTime + ".  Number of Channels = " + numChan + ".  Number of Angles = " + numAngle + ".");
+    	setBatchMode(true);
+    	//Open file
+    	run("Bio-Formats Importer", "open=" + filePath + " color_mode=Grayscale view=Hyperstack stack_order=XYCZT");
+	    print ("Opened File");
+		// Split channels, rename and fix LUT
+		run("Split Channels");
+        windowlist = getList("image.titles");
+        for (i=0; i < windowlist.length; i++) {
+            prefix = startsWith(windowlist[i], "C" + (i+1));
+            print ("Found window: " + windowlist[i] + "  Window assigned to channel (1 = YES): " + prefix);
+            if (prefix == true) {
+                selectWindow(windowlist[i]);
+                rename("Channel_" + i);
+                print ("Window renamed: " + "Channel_" + i);
+                LUT = is("Inverting LUT");
+                if (LUT == true) {
+                    print ("Channel_" + i + "'s LUT is inverted!");
+                    run("Invert LUT", "stack");
+                    print ("Inverted LUT");
+                }
+                //Downsample and save
+                if (binX + binY + binZ > 3) {
+                    print ("Downsampling");
+                    run ("Bin...", "x=" + binX + " y=" + binY + " z=" + binZ + " bin=Average");
+                    print ("Downsampled: " + binX + " x " + binY + " x " + binZ + " times");
+                }
+                filename=outputDir + File.separator + chanName[i + 1]+ File.separator + "spim_TL001_Angle1.tif";
+		        saveAs("Tiff", filename);	
+		        close();
+            }  
+            else {
+                print ("Error, cannot find correct channel in open windows");
+            }  
+        }
+        setBatchMode(false);
+        print ("Done!");
+    }
+    else if (numTime == 1 && numChan == 1 && numAngle > 1) {
+    	print ("Number of Timepoints = " + numTime + ".  Number of Channels = " + numChan + ".  Number of Angles = " + numAngle + ".");
+    	// Open file
+    	setBatchMode(true);
+    	for (Angle=1; Angle <= numAngle; Angle++) {
+            print ("Opening Angle " + Angle);
+		    startedAt = getTime();
+		    // Open the file
+		    run("Bio-Formats Importer", "open=" + filePath + " color_mode=Grayscale view=Hyperstack stack_order=XYCZT series_" + Angle);
+		    print ("Opened Angle "+ Angle);
+		    // Downsample and save
+		    if (binX + binY + binZ > 3) {
+                print ("Downsampling");
+                run ("Bin...", "x=" + binX + " y=" + binY + " z=" + binZ + " bin=Average");
+                print ("Downsampled Angle " + Angle + ": " + binX + " x " + binY + " x " + binZ + " times.");
+            	}
+            filename=outputDir + File.separator + chanName[1]+ File.separator + "spim_TL001_Angle"+d2s(Angle,0)+".tif";
+			saveAs("Tiff", filename);	
+			close();
+			// clear memory
+            call("java.lang.System.gc");
+            // Update counters
+		    openElapsed += getTime() - startedAt;
+		    filesDone += 1;
+		    filesRemain -= 1;
+		    print ("Files completed = " + filesDone + " Files remaining = " + filesRemain); 
+    	}
+    	setBatchMode(false);
+        totalTime=(getTime()-absoluteStart)/(1000*60);
+        print ("ALL DONE! It took "+d2s(totalTime,0)+" minutes.");
+        // Save the log file.
+        selectWindow("Log");
+        thisFile=outputDir+"CZI_to_TIF.log";
+        saveAs("text",thisFile);	
+    }
+    else if (numTime > 1 && numChan > 1 && numAngle == 1) {
+    	print ("Number of Timepoints = " + numTime + ".  Number of Channels = " + numChan + ".  Number of Angles = " + numAngle + ".");
+    	setBatchMode(true);
+    	for (Time=1; Time <= numTime; Time++) {
+    		startedAt = getTime();
+		    // Open file
+			run("Bio-Formats Importer", "open=" + filePath + " color_mode=Grayscale specify_range view=Hyperstack stack_order=XYCZT t_begin=" + Time + " t_end=" + Time + " t_step=1");
+			print ("Opened Timepoint " + Time);
+			//Split channels
+			run("Split Channels");
+            windowlist = getList("image.titles");
+            for (i=0; i < windowlist.length; i++) {
+                prefix = startsWith(windowlist[i], "C" + (i+1));
+                print ("Found window: " + windowlist[i] + "  Window assigned to channel (1 = YES): " + prefix);
+                if (prefix == true) {
+                    selectWindow(windowlist[i]);
+                    rename("Channel_" + i);
+                    print ("Window renamed: " + "Channel_" + i);
+                    LUT = is("Inverting LUT");
+                    if (LUT == true) {
+                        print ("Channel_" + i + "'s LUT is inverted!");
+                        run("Invert LUT", "stack");
+                        print ("Inverted LUT");
+                    }
+                    // Downsample and save
+		            if (binX + binY + binZ > 3) {
+                        print ("Downsampling");
+                        run ("Bin...", "x=" + binX + " y=" + binY + " z=" + binZ + " bin=Average");
+                        print ("Downsampled Timepoint: " + Time + ": " + binX + " x " + binY + " x " + binZ + " times");
+                    }
+                    filename = outputDir + File.separator + chanName[i + 1]+ File.separator + "spim_TL"+IJ.pad(Time,3)+"_Angle1.tif";
+		            saveAs("Tiff", filename);	
+		            close();
+                }  
+                else {
+                       print ("Error, cannot find an open channel windows");
+                }
+            }
+		    // clear memory
+            call("java.lang.System.gc");
+            // Update counters
+		    openElapsed += getTime() - startedAt;
+		    filesDone += 1;
+		    filesRemain -= 1;
+		    print ("Files completed = " + filesDone + " Files remaining = " + filesRemain); 
+    	}
+    	setBatchMode(false);
+        totalTime=(getTime()-absoluteStart)/(1000*60);
+        print ("ALL DONE! It took "+d2s(totalTime,0)+" minutes.");
+        // Save the log file.
+        selectWindow("Log");
+        thisFile=outputDir+"CZI_to_TIF.log";
+        saveAs("text",thisFile);	
+    }
+    else if (numTime == 1 && numChan > 1 && numAngle > 1) {
+    	print ("Number of Timepoints = " + numTime + ".  Number of Channels = " + numChan + ".  Number of Angles = " + numAngle + ".");
+    	// Open file
+    	setBatchMode(true);
+    	for (Angle=1; Angle <= numAngle; Angle++) {
+            print ("Opening Angle " + Angle);
+		    startedAt = getTime();
+		    // Open the file
+		    run("Bio-Formats Importer", "open=" + filePath + " color_mode=Grayscale view=Hyperstack stack_order=XYCZT series_" + Angle);
+		    print ("Opened Angle "+ Angle);
+		    //Split channels
+			run("Split Channels");
+            windowlist = getList("image.titles");
+            for (i=0; i < windowlist.length; i++) {
+                prefix = startsWith(windowlist[i], "C" + (i+1));
+                print ("Found window: " + windowlist[i] + "  Window assigned to channel (1 = YES): " + prefix);
+                if (prefix == true) {
+                    selectWindow(windowlist[i]);
+                    rename("Channel_" + i);
+                    print ("Window renamed: " + "Channel_" + i);
+                    LUT = is("Inverting LUT");
+                    if (LUT == true) {
+                        print ("Channel_" + i + "'s LUT is inverted!");
+                        run("Invert LUT", "stack");
+                        print ("Inverted LUT");
+                    }
+		            // Downsample and save
+		            if (binX + binY + binZ > 3) {
+                        print ("Downsampling");
+                        run("Bin...", "x=" + binX + " y=" + binY + " z=" + binZ + " bin=Average");
+                        print ("Downsampled Angle "+ Angle +": " + binX + " x " + binY + " x " + binZ + " times");
+            	        }
+                    filename=outputDir + File.separator + chanName[i + 1]+ File.separator + "spim_TL001_Angle"+d2s(Angle,0)+".tif";
+			        saveAs("Tiff", filename);	
+			        close();
+                }
+			    else {
+                       print ("Error, cannot find an open channel windows");
+                }
+            }
+            // clear memory
+            call("java.lang.System.gc");
+            // Update counters
+		    openElapsed += getTime() - startedAt;
+		    filesDone += 1;
+		    filesRemain -= 1;
+		    print ("Files completed = " + filesDone + " Files remaining = " + filesRemain);     
+    	}
+    	setBatchMode(false);
+        totalTime=(getTime()-absoluteStart)/(1000*60);
+        print ("ALL DONE! It took "+d2s(totalTime,0)+" minutes.");
+        // Save the log file.
+        selectWindow("Log");
+        thisFile=outputDir+"CZI_to_TIF.log";
+        saveAs("text",thisFile);	
+    }
+    else if (numTime > 1 && numChan == 1 && numAngle > 1) {
+    	print ("Number of Timepoints = " + numTime + ".  Number of Channels = " + numChan + ".  Number of Angles = " + numAngle + ".");
+        setBatchMode(true);
+        for (Angle=1; Angle <= numAngle; Angle++) {
+	        for (Time=1; Time <= numTime; Time++) {
+		        print ("Opening Angle "+ Angle + ", Timepoint " + Time);
+		        startedAt = getTime();
+		        // Open the file and split channels
+		        run("Bio-Formats Importer", "open=" + filePath + " color_mode=Grayscale specify_range view=Hyperstack stack_order=XYCZT series_" + Angle + " t_begin_" + Angle + "=" + Time + " t_end_" + Angle + "=" + Time + " t_step_" + Angle + "=1");
+		        print ("Opened Angle " + Angle + ", Timepoint " + Time);
+		        if (binX + binY + binZ > 3) {
+                    print ("Downsampling");
+                    run("Bin...", "x=" + binX + " y=" + binY + " z=" + binZ + " bin=Average");
+                    print ("Downsampled Angle "+ Angle + ", Timepoint " + Time+ ": " + binX + " x " + binY + " x " + binZ + " times");
+		        }
+                filename=outputDir + File.separator + chanName[1]+ File.separator + "spim_TL"+IJ.pad(Time,3)+"_Angle"+d2s(Angle,0)+".tif";
+			    saveAs("Tiff", filename);	
+			    close();
+                // clear memory
+                call("java.lang.System.gc");
+                // Update counters
+		        openElapsed += getTime() - startedAt;
+		        filesDone += 1;
+		        filesRemain -= 1;
+		        print ("Files completed = " + filesDone + " Files remaining = " + filesRemain); 
+            }
+        }
+        setBatchMode(false);
+        totalTime=(getTime()-absoluteStart)/(1000*60);
+        print ("ALL DONE! It took "+d2s(totalTime,0)+" minutes.");
+        // Save the log file.
+        selectWindow("Log");
+        thisFile=outputDir+"CZI_to_TIF.log";
+        saveAs("text",thisFile);	
+    }
+    else if (numTime > 1 && numChan > 1 && numAngle > 1) {
+    	print ("Number of Timepoints = " + numTime + ".  Number of Channels = " + numChan + ".  Number of Angles = " + numAngle + ".");
+    	setBatchMode(true);
+        for (Angle=1; Angle <= numAngle; Angle++) {
+	        for (Time=1; Time <= numTime; Time++) {
+		        print ("Opening Angle "+ Angle + " Timepoint " + Time);
+		        startedAt = getTime();
+		        // Open the file
+		        run("Bio-Formats Importer", "open=" + filePath + " color_mode=Grayscale specify_range view=Hyperstack stack_order=XYCZT series_" + Angle + " t_begin_" + Angle + "=" + Time + " t_end_" + Angle + "=" + Time + " t_step_" + Angle + "=1");
+		        print ("Opened Angle "+ Angle + " Timepoint " + Time);
+		        //Split channels
+			    run("Split Channels");
+                windowlist = getList("image.titles");
+                for (i=0; i < windowlist.length; i++) {
+                    prefix = startsWith(windowlist[i], "C" + (i+1));
+                    print ("Found window: " + windowlist[i] + "  Window assigned to channel (1 = YES): " + prefix);
+                    if (prefix == true) {
+                        selectWindow(windowlist[i]);
+                        rename("Channel_" + i);
+                        print ("Window renamed: " + "Channel_" + i);
+                        LUT = is("Inverting LUT");
+                        if (LUT == true) {
+                            print ("Channel_" + i + "'s LUT is inverted!");
+                            run("Invert LUT", "stack");
+                            print ("Inverted LUT");
+                        }
+		                // Downsample and save
+		                if (binX + binY + binZ > 3) {
+                            print ("Downsampling");
+                            run("Bin...", "x=" + binX + " y=" + binY + " z=" + binZ + " bin=Average");
+                            print ("Binned Angle "+ Angle +", Timepoint " + Time + ": " + binX + " x " + binY + " x " + binZ + " times");
+            	        }
+                        filename=outputDir + File.separator + chanName[i + 1]+ File.separator + "spim_TL"+IJ.pad(Time,3)+"_Angle"+d2s(Angle,0)+".tif";
+			            saveAs("Tiff", filename);	
+			            close();
+                    }
+			        else {
+                        print ("Error, cannot find an open channel window");
+                    }
+                }
+                // clear memory
+                call("java.lang.System.gc");    
+                // Update counters
+		        openElapsed += getTime() - startedAt;
+		        filesDone += 1;
+		        filesRemain -= 1;
+		        print ("Files completed = " + filesDone + " Files remaining = " + filesRemain); 
+	        }
+        }
+        setBatchMode(false);
+        totalTime=(getTime()-absoluteStart)/(1000*60);
+        print ("ALL DONE! It took "+d2s(totalTime,0)+" minutes.");
+        // Save the log file.
+        selectWindow("Log");
+        thisFile=outputDir+"CZI_to_TIF.log";
+        saveAs("text",thisFile);	        
+    }
+    else {
+    	print ("Error, you have entered an incorrect file configuration");
+    }
