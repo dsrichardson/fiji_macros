@@ -1,0 +1,54 @@
+newImage("Sin Wave", "8-bit black", 3000, 3000, 1);
+
+height = getHeight();
+width = getWidth();
+
+
+
+print ("width = " + width);
+print ("height = " + height);
+
+
+for (count = 0; count < 8; count++) {
+    for (x = count; x < width; x+=4) {
+    	for (y = 0; y < height; y++) {
+		   if (count == 0) { 
+		       setPixel(x, y, 0);
+	           print ("Pixel " + x + "," + y + " is set to 0");
+           }
+		   else if (count == 1) { 
+		       setPixel(x, y, 128);
+	           print ("Pixel " + x + "," + y + " is set to 64");
+           }
+           else if (count == 2) { 
+		       setPixel(x, y, 255);
+	           print ("Pixel " + x + "," + y + " is set to 128");
+           }
+           else if (count == 3) { 
+		       setPixel(x, y, 128);
+	           print ("Pixel " + x + "," + y + " is set to 192");
+           }
+           else if (count == 4) { 
+		       setPixel(x, y, 128);
+	           print ("Pixel " + x + "," + y + " is set to 256");
+           }
+           else if (count == 5) { 
+		       setPixel(x, y, 128);
+	           print ("Pixel " + x + "," + y + " is set to 192");
+           }
+           else if (count == 6) { 
+		       setPixel(x, y, 128);
+	           print ("Pixel " + x + "," + y + " is set to 128");
+           }
+           else if (count == 7) { 
+		       setPixel(x, y, 128);
+	           print ("Pixel " + x + "," + y + " is set to 64");
+           }
+	       else {
+	           print ("Error")	
+	       }
+    	}
+    }
+}
+
+
