@@ -1,0 +1,45 @@
+dir = getDirectory("Choose a Directory");
+dir_array = getFileList(dir);
+dir_length = dir_array.length
+
+print ("Macro will only work for datasets with 2 x 1 tiles aquired in ZEN Black saved as .CZI");
+
+setBatchMode (true);
+
+// Get Series Count for all files in a directory
+for (i=0; i < dir_array.length; i++) {
+	run("Bio-Formats Macro Extensions");
+	id = dir + dir_array[i];
+	Ext.setId(id);
+	Ext.getSeriesCount(seriesCount);
+
+	print (dir_array[i] + " contains " + seriesCount + " series. (This should be 2x number of positions.)");
+	print (seriesCount);
+	//Open first half of files and save as "Tile1_PositionX"
+	for (s = 1; s <= (seriesCount/2); s++) {
+		run("Bio-Formats Importer", "open=" + dir + dir_array[i] + " color_mode=Grayscale view=Hyperstack stack_order=XYCZT series_" + s);
+		Tile1Dir = dir + File.nameWithoutExtension + File.separator;
+		//print (Tile1Dir);
+		File.makeDirectory(Tile1Dir);
+		File.makeDirectory(Tile1Dir + "Tile1" + File.separator);
+		saveAs("Tiff", Tile1Dir + "Tile1" + File.separator + "Tile1_Position_" + s + ".tif");
+		close();
+		// clear memory
+        call("java.lang.System.gc");
+	}
+	position = 1
+	//Open second half of files and save as "Tile2_PositionX"
+	for (t = (seriesCount/2) + 1; t <= seriesCount; t++) {
+		run("Bio-Formats Importer", "open=" + dir + dir_array[i] + " color_mode=Grayscale view=Hyperstack stack_order=XYCZT series_" + t);
+		Tile2Dir = dir + File.nameWithoutExtension + File.separator;
+		//print (Tile2Dir);
+		File.makeDirectory(Tile2Dir);
+		File.makeDirectory(Tile2Dir + "Tile2" + File.separator);
+		saveAs("Tiff", Tile2Dir + "Tile2" + File.separator + "Tile2_Position_" + position + ".tif");
+		position = position + 1
+		close();
+		// clear memory
+        call("java.lang.System.gc");
+	}
+}
+
