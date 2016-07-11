@@ -1,0 +1,20 @@
+dir = getDirectory("Choose a Directory");
+dir_array = getFileList(dir);
+dir_length = dir_array.length;
+chan1dir = getDirectory("Choose a Directory for Chan1 output");
+chan2dir = getDirectory("Choose a Directory for Chan2 output");
+chan3dir = getDirectory("Choose a Directory for Chan3 output");
+
+setBatchMode (true);
+
+for (i=0; i < dir_array.length; i++) {
+	if (endsWith(dir_array[i], "1.tif") == true) {
+		File.rename(dir + dir_array[i], chan1dir + dir_array[i]);
+	}
+	else if (endsWith(dir_array[i], "2.tif") == true) {
+		File.rename(dir + dir_array[i], chan2dir + dir_array[i]);
+	}
+	else if (endsWith(dir_array[i], "3.tif") == true) {
+		File.rename(dir + dir_array[i], chan3dir + dir_array[i]);
+	}
+}
