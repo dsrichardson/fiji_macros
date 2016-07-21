@@ -1,0 +1,93 @@
+/*This macro will count 3D foci in segmented nuclei. It functions in "batch" mode.  All files to be processed should be
+ * in the same "input" folder. File names and directories can not contain spaces. Files must be >1 color channel and 
+ * channel_2 should be a nuclear (DAPI) channel. The foci to be counted must be in Channel_1. The "Object Conter 3D"
+ * plugin must be installed.
+ * 
+ * created by: drichardson
+ * created on: July 21, 2016
+*/
+
+inputDir = getDirectory("Choose input Directory");
+dir_array = getFileList(inputDir);
+dir_length = dir_array.length;
+outputDir= getDirectory("Choose an output Directory");
+
+
+setBatchMode (true);
+
+//iterate through all files in input directory
+
+for (i=0; i < dir_array.length; i++) {
+	//create output folder for each file in input directory
+	file_Dir = outputDir + File.separator + dir_array[i];
+	File.makeDirectory(file_Dir);
+	//open file
+	run("Bio-Formats Importer", "open=" + inputDir + dir_array[i] + " color_mode=Default view=Hyperstack stack_order=XYCZT");
+	getVoxelSize(width, height, depth, unit);
+	run("Split Channels");
+	//rename channel windows
+	windowlist = getList("image.titles");
+	for (i=0; i < windowlist.length; i++) {
+		prefix = startsWith(windowlist[i], "C" + (i+1));
+    	if (prefix == true) {
+    		selectWindow(windowlist[i]);
+        	rename("Channel_" + (i + 1));
+        	LUT = is("Inverting LUT");
+        	if (LUT == true) {
+        		print ("Channel_" + i + "'s LUT is inverted!");
+            	run("Invert LUT", "stack");
+            	print ("Inverted LUT");
+        	}
+    	}
+	}
+	//select DAPI channel and create ROIs for each cell
+	selectWindow("Channel_2");
+	slice = nSlices;
+	mid_slice = round(slice /2);
+	run("Slice Keeper", "first=" + mid_slice + " last=" + mid_slice + " increment=1");
+	close("Channel_2");
+	run("Median...", "radius=7");
+	run("Gaussian Blur...", "sigma=10");
+	run("Auto Threshold", "method=Huang white");
+	//Some systems require the LUT to be inverted, if so, uncomment lines 53 and 55
+	//run("Invert LUT");
+	run("Watershed");
+	//run("Invert LUT");
+	setVoxelSize(width, height, depth, unit);
+    setThreshold(129, 255);
+	run("Analyze Particles...", "size=50.00-1000.00 show=Nothing exclude clear add");
+	selectWindow("Channel_2 kept stack");
+	run("RGB Color");
+	rename("DAPI_Segmentation");
+	saveAs("Tiff", file_Dir + File.separator + "DAPI_Segmentation.tif");
+	close("DAPI_Segmentation.tif");
+	
+	count = roiManager("count");
+	//iterate though each ROI and count all puncta in GFP channel in 3D
+	for (j=0; j < count; j++) {
+		selectWindow("Channel_1");
+		roiManager("Select", j);
+		run("Duplicate...", "duplicate");
+		rename("Precount_ROI_" + (j+1));
+		run("Gaussian Blur...", "sigma=1 stack");
+		run("Subtract Background...", "rolling=10 disable stack");
+		run("Enhance Contrast", "saturated=0.01");
+		run("Auto Threshold", "method=Otsu white stack use_stack_histogram");
+		//Some systems require the LUT to be inverted, if so, uncomment lines 77 an 79
+		//run("Invert LUT");
+		run("Watershed", "stack");
+		//run("Invert LUT");
+		run("Object Counter3D", "threshold=128 slice=17 min=20 max=200 new_results particles dot=3 font=8 summary");
+		saveAs("Tiff", file_Dir + File.separator + "ROI_" + (j+1));
+		close("ROI_" + (j+1) + ".tif");
+		close("Precount_ROI_" + (j+1));
+		selectWindow("Results from Precount_ROI_" + (j+1));
+		saveAs("Results", file_Dir + File.separator + "Results_ROI_" + (j+1) + ".xls");
+		selectWindow("Results_ROI_" + (j+1) + ".xls");
+		run("Close");
+	}
+}
+close()
+selectWindow("Log");
+saveAs("Text", file_Dir + File.separator + "Log");
+run("Close");
