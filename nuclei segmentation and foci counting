@@ -1,6 +1,6 @@
 /*This macro will count 3D foci in segmented nuclei. It functions in "batch" mode.  All files to be processed should be
  * in the same "input" folder. File names and directories can not contain spaces. Files must be >1 color channel and 
- * channel_2 should be a nuclear (DAPI) channel. The foci to be counted must be in Channel_1. The "Object Conter 3D"
+ * channel_2 should be a nuclear (DAPI) channel. The foci to be counted must be in Channel_1. The "Object Counter 3D"
  * plugin must be installed.
  * 
  * created by: drichardson
