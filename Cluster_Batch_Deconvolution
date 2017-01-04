@@ -1,4 +1,4 @@
-
+// D Richardson 2017/01/04
 
 //Create Dialog to request number of channels
 Dialog.create("Number of channels in image");
