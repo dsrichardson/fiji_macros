@@ -1,0 +1,85 @@
+
+
+//Create Dialog to request number of channels
+Dialog.create("Number of channels in image");
+Dialog.addMessage("How many channels are in each file (max 4, all files must have same number of channels)?");
+Dialog.addNumber("Number of channels:",1);
+Dialog.show();
+numChan = Dialog.getNumber();
+
+//Locate the directory with files to be deconvolved
+input = getDirectory("Choose the directory where the files to be deconvolved reside.");
+
+setBatchMode(true); 
+
+//Locate the psf files and add locations to list
+psf1 = File.openDialog("Select where the PSF file for channel 1 is stored");
+List.set("psf1", psf1);
+if (numChan > 1) {
+	psf2 = File.openDialog("Select where the PSF file for channel 2 is stored");
+	List.set("psf2", psf2);
+}
+if (numChan > 2) {
+	psf3 = File.openDialog("Select where the PSF file for channel 3 is stored");
+	List.set("psf3", psf3);
+}
+if (numChan > 3) {
+	psf4 = File.openDialog("Select where the PSF file for channel 4 is stored");
+	List.set("psf4", psf4);
+}
+if (numChan < 1) {
+	print ("You have enterred an invalid number. Number of channels must be 1-4.");
+	exit()
+}
+if (numChan > 4) {
+	print ("You have enterred an invalid number. Number of channels must be 1-4.");
+	exit()
+}
+
+
+//Create a folder for individual channels and deconvolved files
+input_tif = input + "tifs" + File.separator; 
+output = input + "deconvolved" + File.separator;
+
+File.makeDirectory(input_tif) 
+File.makeDirectory(output) 
+
+//setBatchMode(true); 
+list = getFileList(input);
+for (i = 0; i < list.length; i++) {
+	if (endsWith(list[i],".czi")) {
+    	action(input, input_tif, output, list[i], List.get("psf" + i + 1));
+	}
+}
+
+function action(input,input_tif,output,filename,pathToPsf) {
+	for (j = 1; j < (numChan + 1); j++) {
+		run("Bio-Formats Importer", "open="+ input + filename + " color_mode=Default specify_range view=Hyperstack stack_order=XYCZT c_begin=" + j + " c_end=" + j + " c_step=1 z_begin=50 z_end=55 z_step=1");
+		saveAs("Tiff", input_tif + filename + "_C=" + j + ".tif");
+		close();
+		decon(input_tif,output,filename+"_C=" + j + ".tif",pathToPsf);
+	}
+}
+
+function decon(input,output,filename,pathToPsf) {
+	//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+	// MRNSD
+	//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+	pathToBlurredImage = input + filename;
+	pathToDeblurredImage = output + filename;
+	preconditioner = "FFT"; //available options: FFT, NONE
+	preconditionerTol = "-1"; //if -1, then GCV is used to compute preconditionerTol
+	boundary = "REFLEXIVE"; //available options: REFLEXIVE, PERIODIC, ZERO
+	resizing = "AUTO"; // available options: AUTO, MINIMAL, NEXT_POWER_OF_TWO
+	output = "SAME_AS_SOURCE"; // available options: SAME_AS_SOURCE, BYTE, SHORT, FLOAT  
+	precision = "SINGLE"; //available options: SINGLE, DOUBLE
+	stoppingTol = "-1"; //if -1, then stoppingTol is computed automatically
+	threshold = "-1"; //if -1, then disabled
+	logConvergence = "true"; //displays convergence in ImageJ log window
+	maxIters = "10";  //50-100
+	nOfThreads = "8"; //match to cores
+	showIter = "false";
+	call("java.lang.System.gc");
+	call("edu.emory.mathcs.restoretools.iterative.ParallelIterativeDeconvolution3D.deconvolveMRNSD", pathToBlurredImage, pathToPsf, pathToDeblurredImage, preconditioner, preconditionerTol, boundary, resizing, output, precision, stoppingTol, threshold, logConvergence, maxIters, nOfThreads, showIter);
+	call("java.lang.System.gc");
+}
