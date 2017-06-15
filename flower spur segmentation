@@ -1,0 +1,81 @@
+
+// Make a dialog to find out how many spurs are to be analyzed
+Dialog.create("Spur #");
+Dialog.addNumber("How many spurs are in the image?",1);
+Dialog.show();
+numSpurs = Dialog.getNumber();
+
+
+// Get the path to each file and the output directory.
+filePath=File.openDialog("Which file would you like to process?");
+outputDir=getDirectory("Choose an empty folder to output .csv files");
+
+//Open the file
+open(filePath);
+
+//Set count to zero, remeber orignial image name
+count = 0;
+myImageID = getInfo("image.filename");    
+
+//Segment and outline all objects
+run("Split Channels");
+imageCalculator("Subtract create 32-bit", myImageID + " (red)",myImageID + " (green)");
+close(myImageID + " (red)");
+close(myImageID + " (green)");
+selectWindow("Result of " + myImageID + " (red)");
+imageCalculator("Subtract create 32-bit", "Result of " + myImageID + " (red)",myImageID + " (blue)");
+close(myImageID + " (blue)");
+close("Result of " + myImageID + " (red)");
+selectWindow("Result of Result of " + myImageID + " (red)");
+run("8-bit");
+run("Auto Threshold", "method=Otsu white");
+run("Invert LUT");
+run("Fill Holes");
+setOption("BlackBackground", false);
+run("Dilate");
+run("Dilate");
+run("Dilate");
+run("Close-");
+run("Outline");
+run("Invert LUT");
+rename("outlines");
+
+//loop through all spurs as user draws polygon around each and crop
+for (s=0; s < numSpurs; s++) {
+	setTool(3);                                          //Polygon tool 
+	beep();                                              //alert the user
+	waitForUser("Select Polygon Region to Analyze and press OK or press OK to quit");  //wait for user action
+	selectImage("outlines");                              //make sure we have the same foreground image again
+	if (selectionType() != 2)                            //make sure we have got a rectangular selection
+		exit("Sorry, no polygon");
+	run("Duplicate...", " ");     
+	rename("spur#" + count);
+
+
+//Get size of cropped region
+	selectImage("spur#" + count);
+	width = getWidth;
+	height = getHeight;
+//Set pixel counter to zero
+	pixelcount = 0;
+//loop though all pixels and save the locations of the white ones
+	for (y = 0; y < height; y++) {
+		for (x=0; x < width; x++) {
+			b = getPixel(x, y);
+			if (b > 240) {
+				setResult("X", pixelcount, x);
+				setResult("Y", pixelcount, y);
+				pixelcount = pixelcount + 1;
+			}
+		}
+	}
+	selectWindow("spur#" + count);
+	filename = "spur#" + count;
+	saveAs("tif", outputDir + filename + ".tif");
+	close(filename + ".tif");
+	saveAs("results",  outputDir + filename + ".csv"); 
+	IJ.deleteRows(0, pixelcount);
+	count = count + 1;
+}
+close("outlines");
+
