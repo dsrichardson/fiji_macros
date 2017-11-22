@@ -1,0 +1,64 @@
+// This macro will convert AxioScan JPEGXR compressed .CZI files to standard .tif files and separate each scene into a single image.
+//You will need enough free RAM to open the UNCOMPRESSED full resolution file.
+//Files exceeding the 32-bit .tif pixel limit will not open/convert (approximately 4GB uncompressed)
+//Tested with Bioformats version 5.7.2
+//Written by D Richardson 11/22/2017
+
+//All .CZI files should be placed in a single folder.  A second empty "output" folder also needs to be created. 
+//The macro will initialize by askign you fo rthe location of these.
+
+inputDir = getDirectory("Choose input Directory");
+dir_array = getFileList(inputDir);
+dir_length = dir_array.length;
+outputDir= getDirectory("Choose an output Directory");
+
+
+setBatchMode (true);
+
+//iterate through all files in input directory
+
+for (i=0; i < dir_array.length; i++) {
+	//create folder for each file in the output directory
+	file_Dir = outputDir + File.separator + dir_array[i];
+    File.makeDirectory(file_Dir);
+
+    //determine number of "scenes" (sections on a single slide)
+    run("Bio-Formats Macro Extensions");
+    path = inputDir + File.separator + dir_array[i];
+    //print(path);
+    Ext.setId(path);
+    Ext.getCurrentFile(file);
+    Ext.getSeriesCount(seriesCount);
+    //print("This file (" + dir_array[i] +") contains " + seriesCount + " series.");
+    sceneNum = (seriesCount - 2) / 6;
+    print("There is/are " + sceneNum + " scene(s) in the file: " + dir_array[i]);
+
+    //determine which scene is the label
+    label = seriesCount - 1;
+
+    // Set count to 1 for highest resolution, 6 for lowest resolution. (2-5 can also be used).
+    count = 1; 
+    
+    //open each scene and resave as .tif
+    for (s=1; s<=sceneNum; s++) {
+    run("Bio-Formats Importer", "open=&path autoscale color_mode=Default view=Hyperstack stack_order=XYCZT series_"+ (count));
+    out_path = file_Dir + File.separator + "Scene_" + s + ".tif";
+    saveAs("tiff", out_path);
+    close();
+    count = count + 6;
+    }
+    //save image of slide label in same folder
+    run("Bio-Formats Importer", "open=&path autoscale color_mode=Default view=Hyperstack stack_order=XYCZT series_"+ label);
+    out_path = file_Dir + File.separator + "Label.tif";
+    saveAs("tiff", out_path);
+    close();
+    //save preview image of slide in same folder
+    run("Bio-Formats Importer", "open=&path autoscale color_mode=Default view=Hyperstack stack_order=XYCZT series_"+ seriesCount);
+    out_path = file_Dir + File.separator + "Preview.tif";
+    saveAs("tiff", out_path);
+    close();
+    call("java.lang.System.gc");
+}
+
+
+
