@@ -16,13 +16,13 @@ indexDir_array = getFileList(indexDir);
 indexDir_length = indexDir_array.length;
 
 inputDir = getDirectory("Which folder contains all other files?");
-dir_array = getFileList(inputDir);
-dir_length = dir_array.length;
+inputDir_array = getFileList(inputDir);
+inputDir_length = inputDir_array.length;
 
 
 setBatchMode (true);
 
-//max project all files in INDEX directory (should only be one file)
+max project all files in INDEX directory (should only be one file)
 for (i=0; i < indexDir_array.length; i++) {
     //get number of Z-sices
     run("Bio-Formats Macro Extensions");
@@ -85,7 +85,7 @@ for (i=0; i < indexDir_array.length; i++) {
 for (j=0; j < indexDir_array.length; j++) {
     //get number of Z-sices
     run("Bio-Formats Macro Extensions");
-    path = inputDir + File.separator + indexDir_array[j];
+    path = inputDir + File.separator + inputDir_array[j];
     print(path);
     Ext.setId(path);
     Ext.getCurrentFile(file);
