@@ -1,8 +1,9 @@
 //This macro is used for dual side fusion (maximum intensity projection) of large TILED files from a Zeiss Lightsheet Z1.
 //If ZEN produces a "Out of Memory Error" this macro can be used instead.
-//The file must be collected using the "Split view" function so that every tile has it's own .CZI file
+//The file must be collected using the "Seperate view" function so that every tile has it's own .CZI file
 //The index file (.CZI file that represents the 1st tile - no number in brackets after it) must be placed in it own folder or else macro runs very slowly
-//All other .CZI files should be together in a single folder
+//All other .CZI files should be in the same directory as the "index" folder
+//The "queue" file should be removed/deleted
 //Currently only works with a two channel image - email drichardson@fas.harvard.edu for other options
 //Requires Bioformats version 5.7.2 or higher
 
@@ -22,7 +23,7 @@ inputDir_length = inputDir_array.length;
 
 setBatchMode (true);
 
-max project all files in INDEX directory (should only be one file)
+//max project all files in INDEX directory (should only be one file)
 for (i=0; i < indexDir_array.length; i++) {
     //get number of Z-sices
     run("Bio-Formats Macro Extensions");
@@ -80,12 +81,11 @@ for (i=0; i < indexDir_array.length; i++) {
     run("Close All");
     call("java.lang.System.gc");
 }
-
 //max project all files (files=tiles=scenes) in INPUT directory
-for (j=0; j < indexDir_array.length; j++) {
+for (j=0; j < inputDir_array.length; j++) {
     //get number of Z-sices
     run("Bio-Formats Macro Extensions");
-    path = inputDir + File.separator + inputDir_array[j];
+    path = inputDir + File.separator + inputDir_array[(j+1)];
     print(path);
     Ext.setId(path);
     Ext.getCurrentFile(file);
@@ -97,7 +97,7 @@ for (j=0; j < indexDir_array.length; j++) {
     run("Z Project...", "projection=[Max Intensity]");
     rename("MAX");
     close("new");
-    print("First Z-plane, green channel (scene " + j + "), projected.");
+    print("First Z-plane, green channel (scene " + (j+1) + "), projected.");
     //Max project and concatinate green images from all other Z-planes
     for (z =2; z <= sizeZ; z++) {
         run("Bio-Formats Importer", "open=" + path + " color_mode=Default rois_import=[ROI manager] specify_range view=Hyperstack stack_order=XYCZT c_begin=1 c_end=3 c_step=2 z_begin=" + z + " z_end=" + z + " z_step=1");
@@ -110,8 +110,8 @@ for (j=0; j < indexDir_array.length; j++) {
         call("java.lang.System.gc");
     }
     //Save Max-projected Z-stack
-    print("All Z-planes, green channel (scene " + j + "), projected.");
-    saveAs("Tiff", inputDir + File.separator + "scene_" + j + "_green");
+    print("All Z-planes, green channel (scene " + (j+1) + "), projected.");
+    saveAs("Tiff", inputDir + File.separator + "scene_" + (j+1) + "_green");
     run("Close All");
     call("java.lang.System.gc");
     
@@ -121,7 +121,7 @@ for (j=0; j < indexDir_array.length; j++) {
     run("Z Project...", "projection=[Max Intensity]");
     rename("MAX");
     close("new");
-    print("First Z-plane, red channel (scene " + j + "), projected.");
+    print("First Z-plane, red channel (scene " + (j+1) + "), projected.");
     //Max project and concatinate red images from all other Z-planes
     for (z =2; z <= sizeZ; z++) {
         run("Bio-Formats Importer", "open=" + path + " color_mode=Default rois_import=[ROI manager] specify_range view=Hyperstack stack_order=XYCZT c_begin=2 c_end=4 c_step=2 z_begin=" + z + " z_end=" + z + " z_step=1");
@@ -134,8 +134,8 @@ for (j=0; j < indexDir_array.length; j++) {
         call("java.lang.System.gc");
     }
     //Save Max-projected Z-stack
-    print("All Z-planes, red channel (scene " + j + "), projected.");
-    saveAs("Tiff", inputDir + File.separator + "scene_" + j + "_red");
+    print("All Z-planes, red channel (scene " + (j+1) + "), projected.");
+    saveAs("Tiff", inputDir + File.separator + "scene_" + (j+1) + "_red");
     run("Close All");
     call("java.lang.System.gc");
 }
