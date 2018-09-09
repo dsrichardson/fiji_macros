@@ -1,0 +1,130 @@
+// Make a dialog to determine the parameters of the image aquisition.
+
+	Dialog.create("Parameters of your acquisition");
+	Dialog.addMessage("If you use this macro, please reference the following publication: currently unpublished");
+	Dialog.addMessage("Provide the following information about your acquisition:");
+	Dialog.addNumber("What was the NA of the imaging objective?",0.80);
+	Dialog.addNumber("What was the refractive index of the immersion medium? Air=1.0, Water =1.33",1.00);
+	Dialog.addNumber("What was the refractive index of the mounting medium (must be higher than immersion medium)? PBS=1.33, Glycerol-based=1.43, solvent-based=1.51",1.43);
+	Dialog.addCheckbox("Provide recomended Z-step ONLY (does not process any images)", false);
+	Dialog.addCheckbox("Batch process multiple files /n (all images must use same objective, immersion RI and mounting RI)", false);
+	Dialog.addCheckbox("Insert additional interpolated Z-slices?", false);
+	Dialog.show();
+	NA = Dialog.getNumber();
+	RIimm = Dialog.getNumber();
+	RImount = Dialog.getNumber();
+	ZstepOnly = Dialog.getCheckbox();
+	batch = Dialog.getCheckbox();
+	interpolate = Dialog.getCheckbox();
+
+// Calculate Z correction
+
+Zcorrection = (tan(asin(NA/RIimm))) / (tan(asin(NA/RImount)));
+print("");
+print("Z correction = " + d2s(Zcorrection,2));
+
+// Calculate approximate Z-resolution (assumes 550nm excitation light)
+
+Zres = ((0.88 * 550 ) / (RIimm - (sqrt(pow(RIimm, 2) - pow(NA, 2))))) / 1000;
+
+// Calculate Nyquist Z-sampling
+
+NyquistZ = Zres/2.3;
+NyquistZcorr = NyquistZ / Zcorrection;
+
+
+//Print some info
+
+print("The NA of the imaging objective is: " + NA);
+print("The RI of the immersion media is: " + RIimm);
+print("The RI of the mounting media is: " + RImount);
+print("The optimal (Nyquist) Z-step for this configuration is: " + d2s(NyquistZcorr,3) + " microns.");
+
+if (ZstepOnly == true) {
+	exit()
+}
+
+//setBatchMode (true);
+
+if (batch == false) {
+    print("1 file to be processed.");
+    //Select the file to be processed and an output location
+	filePath=File.openDialog("Locate the original file.");
+	fileName=File.getName(filePath);
+	outputDir=getDirectory("Choose an output directory.");
+    //Open file and get actual Z spacing
+    run("Bio-Formats Importer", "open=" + filePath + " color_mode=Grayscale view=Hyperstack stack_order=XYCZT");
+    filename = getTitle();
+    getVoxelSize(Xpix, Ypix, Zpix, unit);
+    //slices = getDimensions(slices);
+    print("The units are: " + unit);
+    if (unit != "microns") {
+		print("WARNING: metadata does not indicate pixel size in micrometers!");
+		print("Quitting macro");
+		exit()
+	}
+	print("");
+	print("The Z resolution of the imaging system is approximately: " + Zres + "um.");
+	print("The Z-step of the aquired image was: " + Zpix + " " + unit); 
+	if (Zpix > NyquistZcorr) {
+		print("WARNING: The Z-step of " + Zpix + " " + unit + " was too small. It should have been: " + NyquistZcorr + " um.");
+	}
+	if (interpolate == false) {
+		//Reset Z spacing (no interpolation)
+		setVoxelSize(Xpix, Ypix, Zpix*Zcorrection, "um");
+		//Save and close file
+		saveAs("Tiff", outputDir + File.separator + filename + ".tif");
+		close();
+		exit()
+	if (interpolate == true) {
+	print("Additional Z slices will be interpolated and added to Z-stack.");
+	getDimensions(width, height, channels, slices, frames);
+	count = slices;
+	for (i = 2; i >= count; i++) {
+		//selectWindow(filename);
+		print("Count = " + count);
+		print("Duplicating slices " + (count-1) + " and " + count);
+		//Duplicate and renumber all slices in stack
+		run("Duplicate...", "title=slices duplicate slices=" + count);
+		rename(.....)
+		//Duplicate pairs of slices to average and renumber
+		run("Duplicate...", "title=slices duplicate slices=" + (count-1) + "-" + count);
+		run("Z Project...", "projection=[Average Intensity]");
+		rename(count);
+		selectWindow("slices");
+		close();
+		selectWindow(filename);
+		count = count + 1;
+	}
+selectWindow(filename);
+close()
+run("Concatenate...", "all_open title=[Concatenated Stacks]");
+	}
+	}
+
+if (batch == true); {
+	/*This macro will count 3D foci in segmented nuclei. It functions in "batch" mode.  All files to be processed should be
+ * in the same "input" folder. File names and directories can not contain spaces. Files must be >1 color channel and 
+ * channel_2 should be a nuclear (DAPI) channel. The foci to be counted must be in Channel_1. The "Object Counter 3D"
+ * plugin must be installed.
+ * 
+ * created by: drichardson
+ * created on: July 21, 2016
+*/
+
+inputDir = getDirectory("Choose input Directory");
+dir_array = getFileList(inputDir);
+dir_length = dir_array.length;
+outputDir= getDirectory("Choose an output Directory");
+
+
+//iterate through all files in input directory
+
+for (i=0; i < dir_array.length; i++) {
+	//create output folder for each file in input directory
+	file_Dir = outputDir + File.separator + dir_array[i];
+	File.makeDirectory(file_Dir);
+	//open file
+	run("Bio-Formats Importer", "open=" + inputDir + dir_array[i] + " color_mode=Default view=Hyperstack stack_order=XYCZT");
+	getVoxelSize(width, height, depth, unit);
+}
