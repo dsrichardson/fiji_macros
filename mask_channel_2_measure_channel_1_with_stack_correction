@@ -1,3 +1,8 @@
+//Created by Doug Richardson October 13 2018
+//This macro will create a mask based on channel 2 of a three channel image
+//It will identify large, 3 dimensional sturctures and perform fluorescence intensity measurements
+//of signal within these structures in channel 1.
+
 rename("Original");
 run("Duplicate...", "title=channel_2 duplicate channels=2");
 run("Add Slice");
