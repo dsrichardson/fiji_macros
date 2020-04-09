@@ -1,11 +1,11 @@
-//Created by Douglas Richardson, 2019
-//When using this macro, please reference the following publication: Diel et al., Nature Protocols 2019
+//Created by Erin Diel and Douglas Richardson, 2020
+//When using this macro, please reference the following publication: Diel et al., Nature Protocols 2020
 
 
 // Create window to get acquisition info
 
 	Dialog.create("Parameters of your acquisition");
-	Dialog.addMessage("If you use this macro, please reference the following publication: Diel at al., Nature Protocols 2019");
+	Dialog.addMessage("If you use this macro, please reference the following publication: Diel at al., Nature Protocols 2020");
 	Dialog.addMessage("Directory and file names CANNOT contain spaces.");
 	Dialog.addMessage("Please provide the following information about your acquisition:");
 	Dialog.addNumber("What was the NA of the imaging objective?",0.80);
@@ -13,6 +13,8 @@
 	Dialog.addNumber("What was the refractive index of the mounting/clearing medium? PBS ~ 1.33, Glycerol-based ~ 1.43, solvent-based >= 1.50",1.43);
 	Dialog.addNumber("What is the shortest wavelength of excitation light used (in nm)?",488);
 	Dialog.addCheckbox("Provide recommended Z-step ONLY (does not process any images)", false);
+	Dialog.addCheckbox("Correct images using mean axial shift", false);
+	Dialog.addCheckbox("Correct images using median axial shift", false);
 	Dialog.addCheckbox("Batch process multiple files (all images must use same objective, immersion RI and mounting RI)", false);
 	Dialog.show();
 	NA = Dialog.getNumber();
@@ -21,6 +23,8 @@
 	RImount = Dialog.getNumber();
 	wavelength = Dialog.getNumber();
 	ZstepOnly = Dialog.getCheckbox();
+	mean = Dialog.getCheckbox();
+	median = Dialog.getCheckbox();
 	batch = Dialog.getCheckbox();
 	Z_correction_sum = 0;
 	count = 0;
@@ -28,7 +32,7 @@
 	//print(batch);
 
 
-// Calculate focal shift correction factor
+// Calculate mean focal shift correction factor
  
     for (i = NAincr; i <= NA; i += NAincr) {
     	x = (tan(asin(i/RIimm))) / (tan(asin(i/RImount)));
@@ -37,8 +41,12 @@
     	//print("Count is " + count + ". Current NA is: " + i + ". Correction factor is: " + x);
     }
     Z_correction_mean = (Z_correction_sum / count);
-    print("");
-    print("Focal shift correction factor = " + d2s(Z_correction_mean,2) + "x");
+    print("Focal shift correction factor (mean) = " + d2s(Z_correction_mean,3) + "x");
+
+//Calculate median focal shift correction factor
+ 
+    Z_correction_median = (tan(asin(0.5 * NA / RIimm))) / (tan(asin(0.5 * NA / RImount)));
+    print("Focal shift correction factor (median) = " + d2s(Z_correction_median,3) + "x");
 
 // Calculate Z resolution
 
@@ -47,8 +55,7 @@ Zres = ((0.88 * wavelength ) / (RIimm - (sqrt(pow(RIimm, 2) - pow(NA, 2))))) / 1
 // Calculate the corrected Nyquist Z-sampling
 
 NyquistZ = Zres/2.3;
-NyquistZcorr = NyquistZ / Z_correction_mean;
-
+NyquistZcorr = NyquistZ / maxOf(Z_correction_mean, Z_correction_median);
 
 //Print some info
 
@@ -56,8 +63,9 @@ print("");
 print("The NA of the imaging objective is: " + NA);
 print("The RI of the immersion media is: " + RIimm);
 print("The RI of the mounting media is: " + RImount);
-print("The recommended Z-step for this experiment is (no correction): " + d2s(NyquistZ,2));
-print("The recommended focal shift corrected Z-step for this experiment is: " + d2s(NyquistZcorr,2) + " micrometers.");
+print("The recommended Z-step (uncorrected) for this experiment is: " + d2s(NyquistZ,2) + " micrometers.");
+print("The recommended Z-step (focal shift corrected) for this experiment is: " + d2s(NyquistZcorr,2) + " micrometers.");
+print ("");
 
 //Exit if no images to process
 
@@ -98,12 +106,24 @@ if (batch == false) {
 		print("Processing will continue.");
 	}	
 	      	
-	//*Reset Z spacing (no interpolation)
+	//*Reset Z spacing 
+	if (mean == true) {
 	setVoxelSize(Xpix, Ypix, Zpix*Z_correction_mean, "um");
 	//Save and close file
-	saveAs("Tiff", outputDir + File.separator + filename + ".tif");
+	saveAs("Tiff", outputDir + File.separator + filename + "_mean.tif");
+	    if (median == false) {
+	    	close();
+	    }
+	}
+	if (median == true) {
+	setVoxelSize(Xpix, Ypix, Zpix*Z_correction_median, "um");
+	//Save and close file
+	saveAs("Tiff", outputDir + File.separator + filename + "_median.tif");
 	close();
-	exit()
+	}
+	print("");
+    print("PROCESSING COMPLETE.");
+    exit()
 }
 
 
@@ -139,10 +159,22 @@ if (batch == true); {
 		    print("WARNING: In file '" + filename + "' The Z-step of " + Zpix + " " + unit + " was too large. It should have been: " + NyquistZcorr + " um.");
 		    print("Processing will continue.");
 	    }	
-	    //*Reset Z spacing (no interpolation)
+	    //*Reset Z spacing 
+	    if (mean == true) {
 	    setVoxelSize(Xpix, Ypix, Zpix*Z_correction_mean, "um");
 	    //Save and close file
-	    saveAs("Tiff", outputDir + File.separator + filename + ".tif");
+	    saveAs("Tiff", outputDir + File.separator + filename + "_mean.tif");
+	        if (median == false) {
+	    	close();
+	        }
+	    }
+	    if (median == true) {
+	    setVoxelSize(Xpix, Ypix, Zpix*Z_correction_median, "um");
+	    //Save and close file
+	    saveAs("Tiff", outputDir + File.separator + filename + "_median.tif");
 	    close();
+	    }
 	}
+print("");
+print("PROCESSING COMPLETE.");
 }
