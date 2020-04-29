@@ -1,0 +1,50 @@
+//Created by Douglas Richardson, April 29 2020
+
+File_name = getTitle()
+
+cutoff = 10 //sets the maximum distance (in pixels) two objects can be apart and still considerred colocalized 
+
+//split channels and find maxima in each channel
+run("Duplicate...", "title=merge duplicate");
+run("Split Channels");
+selectImage("C1-merge");
+rename("chan1");
+selectImage("C2-merge");
+rename("chan2");
+run("Find Maxima...", "prominence=10 exclude output=List");
+chan2_x_values = Table.getColumn("X");
+chan2_y_values = Table.getColumn("Y");
+close("chan2");
+run("Clear Results")
+selectImage("chan1");
+run("Find Maxima...", "prominence=10 exclude output=List");
+chan1_x_values = Table.getColumn("X");
+chan1_y_values = Table.getColumn("Y");
+close("chan1");
+close("Results");
+
+//print info and results
+
+print("")
+print("The total number of objects found in channel 1 is: " + chan1_x_values.length);
+print("The total number of objects found in channel 2 is: " + chan2_x_values.length);
+print("The percentage of objects in channel 1 that colocalize with channel 2 is: " + calc_coloc (chan1_x_values, chan2_x_values, chan1_y_values, chan2_y_values, cutoff));
+
+print("The percentage of objects in channel 2 that colocalize with channel 1 is: " + calc_coloc (chan2_x_values, chan1_x_values, chan2_y_values, chan1_y_values, cutoff));
+
+//calculate percentage of objects in one channel that colocalize with another channel
+
+function calc_coloc (array1x, array2x, array1y, array2y, cutoff) {
+	positive = 0;
+	total = 0;
+	for (i=0; i < array1x.length; i++) {
+		for (j=0; j < array2x.length; j++) {
+			xdifference = abs(array1x[i] - array2x[j]);
+			ydifference = abs(array1y[i] - array2y[j]);
+			if ((xdifference <= cutoff) & (ydifference <= cutoff)) {
+				positive = positive + 1;
+			}
+		}
+	}
+	return (positive / array1x.length) * 100;
+}
