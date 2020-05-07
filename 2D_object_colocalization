@@ -1,38 +1,95 @@
-//Created by Douglas Richardson, April 29 2020
+//Locate input and output folders 
 
-File_name = getTitle()
+#@ File (label = "Input directory", style = "directory") input
+#@ int  (label = "Tolerance/prominence Channel 1 (the difference in intensity values of all surounding pixels required to call a maximum") tolerance1
+#@ int  (label = "Tolerance/prominence Channel 2 (the difference in intensity values of all surounding pixels required to call a maximum") tolerance2
+#@ int  (label = "Colocalization cutoff (the maximum pixel offset between object centroids") cutoff
 
-cutoff = 10 //sets the maximum distance (in pixels) two objects can be apart and still considerred colocalized 
+//Create a Results_Table
 
-//split channels and find maxima in each channel
-run("Duplicate...", "title=merge duplicate");
-run("Split Channels");
-selectImage("C1-merge");
-rename("chan1");
-selectImage("C2-merge");
-rename("chan2");
-run("Find Maxima...", "prominence=10 exclude output=List");
-chan2_x_values = Table.getColumn("X");
-chan2_y_values = Table.getColumn("Y");
-close("chan2");
-run("Clear Results")
-selectImage("chan1");
-run("Find Maxima...", "prominence=10 exclude output=List");
-chan1_x_values = Table.getColumn("X");
-chan1_y_values = Table.getColumn("Y");
-close("chan1");
-close("Results");
+table1 = "Results_Table";
+Table.create(table1);
 
-//print info and results
+setBatchMode(true)
 
-print("")
-print("The total number of objects found in channel 1 is: " + chan1_x_values.length);
-print("The total number of objects found in channel 2 is: " + chan2_x_values.length);
-print("The percentage of objects in channel 1 that colocalize with channel 2 is: " + calc_coloc (chan1_x_values, chan2_x_values, chan1_y_values, chan2_y_values, cutoff));
+//Iterate through all files in the input folder
 
-print("The percentage of objects in channel 2 that colocalize with channel 1 is: " + calc_coloc (chan2_x_values, chan1_x_values, chan2_y_values, chan1_y_values, cutoff));
+processFolder(input);
 
-//calculate percentage of objects in one channel that colocalize with another channel
+function processFolder(input) {
+	list = getFileList(input);
+	for (i = 0; i < list.length; i++) {
+		processFile(input, list[i]);	
+	}
+}
+
+//Function to find objects in each channel and report results
+
+function processFile(input, file) {
+	//Open image file
+	print("");
+	print("Processing: " + input + File.separator + file);
+	print("Tolerance values are: " + tolerance1 + " (Channel 1) and " + tolerance2 + " (Channel 2).");
+	run("Bio-Formats Importer", "open=[" + input + File.separator + file + "] color_mode=Default rois_import=[ROI manager] view=Hyperstack stack_order=XYCZT");
+	
+	//split channels and find maxima in each channel
+	
+	rename("merge");
+	run("Split Channels");
+	close("merge");
+	selectImage("C1-merge");
+	rename("chan1");
+	selectImage("C2-merge");
+	rename("chan2");
+	run("Find Maxima...", "prominence=" + tolerance2 + " exclude output=List");
+	rows = Table.size;
+	if (rows < 1) {
+		exit("ERROR: No maxima found in channel 2. Reduce tolerance/prominence value.");
+	}
+	chan2_x_values = Table.getColumn("X");
+	chan2_y_values = Table.getColumn("Y");
+	close("chan2");
+	close("Results");
+	selectImage("chan1");
+	run("Find Maxima...", "prominence=" + tolerance1 + " exclude output=List");
+	rows = Table.size;
+	if (rows < 1) {
+		exit("ERROR: No maxima found in channel 1.Reduce tolerance/prominence value.");
+	}
+	chan1_x_values = Table.getColumn("X");
+	chan1_y_values = Table.getColumn("Y");
+	close("chan1");
+	close("Results");
+	
+	//print # of objects found
+	
+	print("");
+	print("The total number of objects found in channel 1 is: " + chan1_x_values.length);
+	print("The total number of objects found in channel 2 is: " + chan2_x_values.length);
+		
+	//Calculate percent of Channel 1 objects colocalized with Channel 2 objects
+		
+	Coloc1in2 = calc_coloc (chan1_x_values, chan2_x_values, chan1_y_values, chan2_y_values, cutoff);
+	if (parseInt(Coloc1in2) > 100) {
+		exit("ERROR: Too many maxima found in channel 2. Increase tolerance/prominence value!");
+	}
+	Coloc2in1 = calc_coloc (chan2_x_values, chan1_x_values, chan2_y_values, chan1_y_values, cutoff);
+	if (parseInt(Coloc2in1) > 100) {
+		exit("ERROR: Too many maxima found in channel 1. Increase tolerance/prominence value!");
+	}
+	print("");
+	print("The percentage of objects in channel 1 that colocalize with channel 2 is: " + Coloc1in2 + "%");
+	print("The percentage of objects in channel 2 that colocalize with channel 1 is: " + Coloc2in1 + "%");
+	
+	//Update Results Table
+	selectWindow("Results_Table");
+	Table.set("File", i, list[i]);
+    Table.set("% Chan1 coloc with Chan2", i, Coloc1in2);
+    Table.set("% Chan2 coloc with Chan1", i, Coloc2in1);
+    Table.update;	
+}
+	
+//Function to calculate the percentage of objects in one channel that colocalize with the other channel
 
 function calc_coloc (array1x, array2x, array1y, array2y, cutoff) {
 	positive = 0;
@@ -46,5 +103,15 @@ function calc_coloc (array1x, array2x, array1y, array2y, cutoff) {
 			}
 		}
 	}
-	return (positive / array1x.length) * 100;
+return d2s((positive / array1x.length * 100), 2);
 }
+
+//Save Results Table
+
+print("");
+print("Saving Results Table to: " + input);
+Table.save(input + File.separator + "Results_Table.csv");
+print("");
+print("Processing Complete!");
+
+setBatchMode(false);
