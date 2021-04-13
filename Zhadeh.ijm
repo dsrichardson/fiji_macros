@@ -1,0 +1,15 @@
+run("Colour Deconvolution", "vectors=H&E");
+selectWindow("Image analysis.jpg-(Colour_3)");
+close();
+selectWindow("Image analysis.jpg-(Colour_1)");
+close();
+selectWindow("Image analysis.jpg-(Colour_2)");
+run("8-bit");
+run("Invert");
+run("Auto Threshold", "method=Otsu white");
+setOption("BlackBackground", false);
+run("Erode");
+run("Dilate");
+run("Fill Holes");
+run("Set Measurements...", "area redirect=None decimal=2");
+run("Analyze Particles...", "  show=[Overlay Masks] display clear");
